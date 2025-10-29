@@ -24,5 +24,13 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1.);
+    let d = in.position.xy - in.center_px;
+    let a = in.conicA.x;
+    let b = in.conicA.y;
+    let c = in.conicA.z;
+    let t = a * d.x * d.x + 2.0 * b * d.x * d.y + c * d.y * d.y;
+    if (t > 9.0) { discard; }
+    let alpha = clamp(in.weight * exp(-0.5 * t), 0.0, 1.0);
+    
+    return vec4<f32>(in.color, alpha);
 }
