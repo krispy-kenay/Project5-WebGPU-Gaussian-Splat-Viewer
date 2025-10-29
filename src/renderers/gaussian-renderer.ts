@@ -54,8 +54,8 @@ export default function get_renderer(
       module: device.createShaderModule({ code: commonWGSL + '\n' + preprocessWGSL }),
       entryPoint: 'preprocess',
       constants: {
-        workgroupSize: C.histogram_wg_size,
-        sortKeyPerThread: c_histogram_block_rows,
+        workgroupSize: WORKGROUP_SIZE,
+        sortKeyPerThread: (C.histogram_wg_size * C.rs_histogram_block_rows) / WORKGROUP_SIZE,
       },
     },
   });
