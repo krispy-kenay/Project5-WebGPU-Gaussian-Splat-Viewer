@@ -6,7 +6,7 @@ import { get_sorter,c_histogram_block_rows,C } from '../sort/sort';
 import { Renderer } from './renderer';
 
 export interface GaussianRenderer extends Renderer {
-
+  setGaussianScale(value: number): void;
 }
 
 // Utility to create GPU buffers
