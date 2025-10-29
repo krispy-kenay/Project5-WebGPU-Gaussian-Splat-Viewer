@@ -19,6 +19,9 @@ export default async function init(
 ) {
   let ply_file_loaded = false; 
   let cam_file_loaded = false; 
+  let isBenchmarking = false;
+  let benchmarkSum = 0;
+  let benchmarkFrames = 0;
   let renderers: { pointcloud?: Renderer, gaussian?: Renderer } = {};
   let gaussian_renderer: GaussianRenderer | undefined; 
   let pointcloud_renderer: Renderer | undefined; 
@@ -51,6 +54,7 @@ export default async function init(
     renderer: 'pointcloud',
     ply_file: '',
     cam_file: '',
+    benchFrames: 300,
   };
 
   const pane = new Pane({
@@ -85,7 +89,7 @@ export default async function init(
       if (uploadedFile) {
         const pc = await load(uploadedFile, device);
         pointcloud_renderer = get_renderer_pointcloud(pc, device, presentation_format, camera.uniform_buffer);
-        gaussian_renderer = get_renderer_gaussian(pc, device, presentation_format, camera.uniform_buffer);
+        gaussian_renderer = get_renderer_gaussian(pc, device, presentation_format, camera.uniform_buffer, canvas);
         renderers = {
           pointcloud: pointcloud_renderer,
           gaussian: gaussian_renderer,
@@ -122,8 +126,18 @@ export default async function init(
       {min: 0, max: 1.5}
     ).on('change', (e) => {
       //TODO: Bind constants to the gaussian renderer.
+      clearTimeout(scaleDebounce);
+      scaleDebounce = setTimeout(() => gaussian_renderer.setGaussianScale(e.value), 25);
+    });
+    let scaleDebounce: any = null;
+  }
+  {
+    const f = pane.addFolder({ title: 'Benchmark' });
+    f.addButton({ title: 'Run Benchmark' }).on('click', () => {
+      runBenchmark();
     });
   }
+  
 
   document.addEventListener('keydown', (event) => {
     switch(event.key) {
@@ -144,6 +158,12 @@ export default async function init(
     }
   });
 
+  function runBenchmark() {
+    isBenchmarking = true;
+    benchmarkSum = 0;
+    benchmarkFrames = 0;
+  }
+
   function frame() {
     if (ply_file_loaded && cam_file_loaded) {
       params.fps=1.0/timeReturn()*1000.0;
@@ -152,6 +172,15 @@ export default async function init(
       const texture_view = context.getCurrentTexture().createView();
       renderer.frame(encoder, texture_view);
       device.queue.submit([encoder.finish()]);
+
+      if (isBenchmarking) {
+        benchmarkSum += params.fps;
+        benchmarkFrames++;
+        if (benchmarkFrames >= params.benchFrames) {
+          isBenchmarking = false;
+          console.log(`Average FPS: ${benchmarkSum / params.benchFrames}`);
+        }
+      }
     }
     requestAnimationFrame(frame);
   }
