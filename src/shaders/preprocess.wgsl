@@ -110,11 +110,118 @@ fn computeColorFromSH(dir: vec3<f32>, v_idx: u32, sh_deg: u32) -> vec3<f32> {
     return  max(vec3<f32>(0.), result);
 }
 
+fn float_to_ordered_uint(x: f32) -> u32 {
+  let bits = bitcast<u32>(x);
+  let mask = select(0x80000000u, 0xFFFFFFFFu, (bits & 0x80000000u) != 0u);
+  return bits ^ mask;
+}
+
+fn quat_to_mat3(q: vec4<f32>) -> mat3x3<f32> {
+    let rx = q[0]; let ry = q[1]; let rz = q[2]; let rw = q[3];
+    return mat3x3<f32>(
+        1.0 - 2.0*(ry * ry + rz * rz),  2.0*(rx * ry - rw * rz),        2.0*(rx * rz + rw * ry),
+        2.0*(rx * ry + rw * rz),        1.0 - 2.0*(rx * rx + rz * rz),  2.0*(ry * rz - rw * rx),
+        2.0*(rx * rz - rw * ry),        2.0*(ry * rz + rw * rx),        1.0 - 2.0*(rx * rx + ry * ry)
+    );
+}
+
 @compute @workgroup_size(workgroupSize,1,1)
 fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) wgs: vec3<u32>) {
     let idx = gid.x;
     //TODO: set up pipeline as described in instruction
+    let num = arrayLength(&gaussians);
+    if (idx >= num) { return; }
+
+    // Unpacking
+    let g = gaussians[idx];
+    let p01 = unpack2x16float(g.pos_opacity[0u]);
+    let p02 = unpack2x16float(g.pos_opacity[1u]);
+    let r01 = unpack2x16float(g.rot[0u]);
+    let r02 = unpack2x16float(g.rot[1u]);
+    let s01 = unpack2x16float(g.scale[0u]);
+    let s02 = unpack2x16float(g.scale[1u]);
+
+    // Position
+    let position_world = vec4<f32>(p01.x, p01.y, p02.x, 1.0);
+    let position_camera = camera.view * position_world;
+    let viewZ = -position_camera.z;
+    var position_clip = camera.proj * position_camera;
+    position_clip /= position_clip.w;
+    if (abs(position_clip.x) > 1.2 || abs(position_clip.y) > 1.2 || position_camera.z < 0.0) {
+        return;
+    }
+    let opacity = 1.0 / (1.0 + exp(-p02.y));
+
+    // Scale
+    let log_sigma = vec3<f32>(clamp(s01.x, -10.0, 10.0), clamp(s01.y, -10.0, 10.0), clamp(s02.x , -10.0, 10.0));
+    let sigma = exp(log_sigma);
+    
+    let S = mat3x3<f32>(
+        settings.gaussian_scaling * sigma.x, 0.0, 0.0,
+        0.0, settings.gaussian_scaling * sigma.y, 0.0,
+        0.0, 0.0, settings.gaussian_scaling * sigma.z
+    );
+
+    // Rotation
+    let q = normalize(vec4<f32>(r01.y, r02.x, r02.y, r01.x));
+    let R = quat_to_mat3(q);    
+    
+    // Covariance Projection
+    let C3D = transpose(S * R) * S * R;
+
+    let t = position_camera.xyz;
+    let fx = camera.focal.x;
+    let fy = camera.focal.y;
+    let J = mat3x3<f32>(
+        fx / t.z, 0.0, - (fx * t.x) / (t.z * t.z),
+        0.0, fy / t.z, - (fy * t.y) / (t.z * t.z),
+        0.0, 0.0, 0.0
+    );
+
+    let Rwc = mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz);
+    let T = J * Rwc;
+
+    var C2D = T * C3D * transpose(T);
+    C2D[0][0] += 0.3;
+    C2D[1][1] += 0.3;
+
+    let det = C2D[0][0] * C2D[1][1] - C2D[0][1] * C2D[0][1];
+    if (det <= 0.0) { return; }
+    
+    let det_inv = 1.0 / det;
+    let aa = C2D[1][1] * det_inv;
+    let bb = -C2D[0][1] * det_inv;
+    let cc = C2D[0][0] * det_inv;
+
+    let viewDir = normalize(-(camera.view * position_world).xyz);
+    let color = computeColorFromSH(viewDir, idx, u32(settings.sh_deg));
+
+    // Eigenvalues
+    let mid = 0.5 * (C2D[0][0] + C2D[1][1]);
+    let disc = sqrt(max(mid * mid - det, 0.0));
+    var lambda1 = mid + disc;
+    var lambda2 = mid - disc;
+    let radius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
+
+    // Sorting prep
+    let visIdx = atomicAdd(&sort_infos.keys_size, 1u);
+    sort_depths[visIdx] = float_to_ordered_uint(-position_camera.z);
+    sort_indices[visIdx] = visIdx;
+
+    // Write to splats
+    splats[visIdx].center_ndc = position_clip.xy;
+    splats[visIdx].depth = position_clip.z + 1e-5;
+    splats[visIdx].radius = vec2<f32>(radius, radius);
+    splats[visIdx].color = color;
+    splats[visIdx].a11 = aa;
+    splats[visIdx].a12 = bb;
+    splats[visIdx].a22 = cc;
+    splats[visIdx].opacity = opacity;
+    
 
     let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
+    if ((visIdx % keys_per_dispatch) == 0u) {
+        _ = atomicAdd(&sort_dispatch.dispatch_x, 1u);
+    }
 }
