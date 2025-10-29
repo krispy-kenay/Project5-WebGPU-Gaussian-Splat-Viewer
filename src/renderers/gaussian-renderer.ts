@@ -1,6 +1,7 @@
 import { PointCloud } from '../utils/load';
 import preprocessWGSL from '../shaders/preprocess.wgsl';
 import renderWGSL from '../shaders/gaussian.wgsl';
+import commonWGSL from '../shaders/common.wgsl';
 import { get_sorter,c_histogram_block_rows,C } from '../sort/sort';
 import { Renderer } from './renderer';
 
@@ -43,7 +44,7 @@ export default function get_renderer(
     label: 'preprocess',
     layout: 'auto',
     compute: {
-      module: device.createShaderModule({ code: preprocessWGSL }),
+      module: device.createShaderModule({ code: commonWGSL + '\n' + preprocessWGSL }),
       entryPoint: 'preprocess',
       constants: {
         workgroupSize: C.histogram_wg_size,
