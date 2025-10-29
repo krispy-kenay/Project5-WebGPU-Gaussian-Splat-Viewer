@@ -35,29 +35,11 @@ struct SortInfos {
     odd_pass: u32,
 }
 
-struct CameraUniforms {
-    view: mat4x4<f32>,
-    view_inv: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    proj_inv: mat4x4<f32>,
-    viewport: vec2<f32>,
-    focal: vec2<f32>
-};
-
-struct RenderSettings {
-    gaussian_scaling: f32,
-    sh_deg: f32,
-}
-
-struct Gaussian {
-    pos_opacity: array<u32,2>,
-    rot: array<u32,2>,
-    scale: array<u32,2>
-};
-
-struct Splat {
-    //TODO: store information for 2D splat rendering
-};
+@group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(1) var<uniform> settings: RenderSettings;
+@group(1) @binding(0) var<storage, read> gaussians : array<Gaussian>;
+@group(1) @binding(1) var<storage, read> sh_buffer : array<u32>;
+@group(1) @binding(2) var<storage, read_write> splats : array<Splat>;
 
 //TODO: bind your data here
 @group(2) @binding(0)

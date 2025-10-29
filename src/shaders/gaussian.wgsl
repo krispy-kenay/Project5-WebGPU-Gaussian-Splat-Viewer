@@ -1,11 +1,17 @@
+@group(3) @binding(0) var<uniform> settings: RenderSettings;
+
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     //TODO: information passed from vertex shader to fragment shader
+    @location(0) center_px : vec2<f32>,
+    @location(1) half_px   : vec2<f32>,
+    @location(2) color     : vec3<f32>,
+    @location(3) conicA    : vec3<f32>,
+    @location(4) weight    : f32,
 };
 
-struct Splat {
-    //TODO: information defined in preprocess compute shader
-};
+@group(1) @binding(0) var<storage, read> splats : array<Splat>;
+@group(2) @binding(0) var<storage, read> sorted_vis_indices : array<u32>;
 
 @vertex
 fn vs_main(
