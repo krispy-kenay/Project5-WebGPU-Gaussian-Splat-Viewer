@@ -21,6 +21,8 @@ export interface SortStuff {
     sort_indices_buffer: GPUBuffer,
     sort_depths_buffer: GPUBuffer,
   }[]
+
+  final_out_index: number
 }
 
 
@@ -356,11 +358,13 @@ export function get_sorter(keysize: number, device: GPUDevice): SortStuff {
     record_scatter_keys_indirect(encoder);
   };
 
+  const final_out_index = (num_pass % 2 === 0) ? 0 : 1;
+
   return {
     sort_info_buffer,
     sort_dispatch_indirect_buffer,
     ping_pong,
-
     sort,
+    final_out_index,
   };
 }
