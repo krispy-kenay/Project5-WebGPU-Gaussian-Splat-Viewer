@@ -69,10 +69,30 @@ var<storage, read_write> sort_indices : array<u32>;
 @group(2) @binding(3)
 var<storage, read_write> sort_dispatch: DispatchIndirect;
 
+
+const SH_WORDS_PER_POINT : u32 = 24u;
+fn read_f16_coeff(base_word: u32, elem: u32) -> f32 {
+    let word_idx = base_word + (elem >> 1u);
+    let halves   = unpack2x16float(sh_buffer[word_idx]);
+    if ((elem & 1u) == 0u) {
+        return halves.x;
+    } else {
+        return halves.y;
+    }
+}
+
 /// reads the ith sh coef from the storage buffer 
 fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
     //TODO: access your binded sh_coeff, see load.ts for how it is stored
-    return vec3<f32>(0.0);
+    let base_word = splat_idx * SH_WORDS_PER_POINT;
+    let eR = c_idx * 3u + 0u;
+    let eG = c_idx * 3u + 1u;
+    let eB = c_idx * 3u + 2u;
+    return vec3<f32>(
+        read_f16_coeff(base_word, eR),
+        read_f16_coeff(base_word, eG),
+        read_f16_coeff(base_word, eB)
+    );
 }
 
 // spherical harmonics evaluation with Condon–Shortley phase
