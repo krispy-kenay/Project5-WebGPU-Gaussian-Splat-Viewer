@@ -35,7 +35,8 @@ fn vs_main(
     let pos = vec4<f32>(a.x, a.y, b.x, 1.);
 
     // TODO: MVP calculations
-    out.position = pos;
+    let worldPos = vec4<f32>(a.x, a.y, b.x, 1.0);
+    out.position = camera.proj * camera.view * worldPos;
 
     return out;
 }
