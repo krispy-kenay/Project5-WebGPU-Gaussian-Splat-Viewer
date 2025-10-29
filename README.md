@@ -7,7 +7,7 @@
 Project 5 WebGPU Gaussian Splat Viewer
 ====================
 
-**Live Demo can be found [here](https://krispy-kenay.github.io/Project4-WebGPU-Forward-Plus-and-Clustered-Deferred/)**
+**Live Demo can be found [here](https://krispy-kenay.github.io/Project5-WebGPU-Gaussian-Splat-Viewer/)**
 
 ## Demo
 <video src="https://github.com/user-attachments/assets/6cd6f02a-db33-4faa-8520-f3e332b3c67b" controls width="100%"></video>
